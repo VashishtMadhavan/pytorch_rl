@@ -1,118 +1,98 @@
 import gym
 import os
-import gym.wrappers as wrappers
-
 import numpy as np
-from collections import namedtuple
-import argparse
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.autograd import Variable
-import torchvision.transforms as T
 from utils import *
-import pdb
 
-BATCH_SIZE = 128
-GAMMA = 0.99
-TARGET_UPDATE = 1000
-TRAIN_FREQ = 4
-MIN_MEM_SIZE = 2500
-GRAD_NORM_CLIP = 10
-LOG_ITERS = int(1e5)
-REPLAY_SIZE = int(2.5e5)
+# TODO: assign all tensors to gpu device
+class DQN:
+    def __init__(self, env, q_network, args):
+        self.env = env
+        self.obs_shape = self.env.observation_space.shape
+        self.args = args
+        self.nA = self.env.action_space.n
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--env", type=str, default="PongNoFrameskip-v4")
-parser.add_argument("--seed", type=int, default=534)
-parser.add_argument("--threads", type=int, default=20)
-parser.add_argument("--updates", type=int, default=10)
-parser.add_argument("--num_timesteps", type=int, default=int(1e6))
-parser.add_argument("--output_dir", type=str, default='tmp')
-args = parser.parse_args()
+        self.Q = q_network(obs_dim=self.obs_shape[-1], act_dim=self.nA)
+        self.Q_target = q_network(obs_dim=self.obs_shape[-1], act_dim=self.nA)
+        # Freezing target network weights
+        for p in self.Q_target.parameters():
+            p.requires_grad = False
 
-env, game_lives = get_env(args.env, args.seed, args.threads)
-if not os.path.exists(args.output_dir):
-    os.mkdir(args.output_dir)
-if game_lives == 0:
-    game_lives += 1
-torch.manual_seed(args.seed)
+    def _select_action(self, obs, epsilon):
+        obs_tensor = torch.from_numpy(obs).float()
+        with torch.no_grad():
+            acts = self.Q(obs_tensor).max(1)[0].numpy()
+        rand_idx = np.random.random(acts.shape) < epsilon
+        acts[rand_idx] = np.random.randint(0, high=self.nA, size=sum(rand_idx))
+        return acts.astype(np.int32)
 
-nT = args.threads
-nU = args.updates
-nA = env.action_space.n
-exploration_schedule = LinearSchedule(args.num_timesteps, final_p=0.05) 
-memory = ReplayMemory(capacity=REPLAY_SIZE)
+    def _sample_replay_data(self):
+        # Sample data from buffer
+        X_batch, A_batch, R_batch, X_tp1_batch, D_batch = self.pool.sample(self.batch_size)
+        X_tensor = torch.from_numpy(X_batch).float()
+        X_tp1_tensor = torch.from_numpy(X_tp1_batch).float()
+        A_tensor = torch.from_numpy(A_batch)
+        R_tensor = torch.from_numpy(R_batch).float()
+        D_tensor = torch.from_numpy(D_batch).float()
+        return X_tensor, A_tensor, R_tensor, X_tp1_tensor, D_tensor
 
-class DQN(nn.Module):
-    def __init__(self, num_actions=18):
-        super(DQN, self).__init__()
-        self.conv1 = nn.Conv2d(4, 16, kernel_size=8, stride=4)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=4, stride=2)
-        self.fc = nn.Linear(9 * 9 * 32, 256)
-        self.out = nn.Linear(256, num_actions)
+    def _init_train_ops(self):
+        self.exploration_schedule = LinearSchedule(self.args.timesteps, final_p=0.01)
+        self.pool = ReplayMemory(capacity=self.args.replay_size)
+        self.timesteps = self.args.timesteps
+        self.learning_rate = self.args.lr
+        self.gamma = self.args.gamma
+        self.batch_size = self.args.batch_size
+        if not os.path.exists(self.args.outdir):
+            os.mkdir(self.args.outdir)
+        if hasattr(self.args, 'game_lives'):
+            logger = Logger(self.args.outdir, self.env.num_envs, self.args.game_lives)
+        else:
+            logger = Logger(self.args.outdir, self.env.num_envs)
+        self.optimizer = optim.Adam(self.Q.parameters(), lr=self.learning_rate)
+        self.Q_target.load_state_dict(self.Q.state_dict()) # copy init Q_vars to target
+        return logger
 
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.fc(x.view(x.size(0), -1)))
-        return self.out(x)
 
-Q = DQN(num_actions=env.action_space.n)
-Q_target = DQN(num_actions=env.action_space.n)
-Q_target.load_state_dict(Q.state_dict())
-Q_target.eval()
+    def train(self):
+        logger = self._init_train_ops()
 
-def select_action(state, t):
-    state = torch.div(torch.from_numpy(state).float(), 255.).permute(0, 3, 1, 2)
-    eps = exploration_schedule.value(t)
-    with torch.no_grad():
-        act = Q(state).max(1)[1].numpy()
-    rand_idx = np.random.random(act.shape[0]) <= eps
-    act[rand_idx] = np.random.randint(0, high=nA, size=sum(rand_idx))
-    return act
+        obs = self.env.reset()
+        iters = (self.timesteps // self.env.num_envs) + 1
+        target_update_freq = 1000 // self.env.num_envs
+        log_update_freq = (self.timesteps // 100) // self.env.num_envs
+        for t in range(iters):
+            curr_step = self.env.num_envs * t
+            eps = self.exploration_schedule.value(curr_step)
+            actions = self._select_action(obs, eps)
+            import pdb; pdb.set_trace()
+            new_obs, rews, dones, infos = self.env.step(actions)
+            for i in range(len(obs)):
+                self.pool.push(obs[i], actions[i], np.sign(rews[i]), new_obs[i], float(dones[i]))
+            obs = new_obs
 
-def main():
-    optimizer = optim.Adam(Q.parameters(), lr=1e-4)
-    obs = env.reset()
-    iters = (args.num_timesteps // nT) + 1
-    logger = Logger(args.output_dir, nT, game_lives)
+            if curr_step >= 2500:
+                X_t, A_t, R_t, X_tp1, D_t = self._sample_replay_data()
 
-    for t in range(iters):
-        env_steps = t * nT
-        action = select_action(obs, env_steps)
-        new_obs, rews, dones, _ = env.step(action)
+                # Compute loss + udpate network
+                self.optimizer.zero_grad()
+                Q_t = self.Q(X_t).gather(1, A_t)
+                Q_tp1_max = self.Q_target(X_tp1).detach().max(1)
+                y_t = R_t + self.gamma * (1.0 - D_t) * Q_tp1_max
+                loss = F.smooth_l1_loss(Q_t, y_t)
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.Q.parameters(), 10)
+                self.optimizer.step()
 
-        for i in range(len(obs)):
-            memory.push(obs[i], action[i], np.sign(rews[i]), new_obs[i], float(dones[i]))
-        obs = new_obs
-        logger.log(rews, dones)
-
-        if t >= MIN_MEM_SIZE:
-            if t % TRAIN_FREQ == 0:
-                for _ in range(nU):
-                    X_batch, A_batch, R_batch, X_tp1_batch, D_batch = memory.sample(BATCH_SIZE)
-
-                    X_batch = torch.div(torch.from_numpy(X_batch).float(), 255.).permute(0, 3, 1, 2)
-                    X_tp1_batch = torch.div(torch.from_numpy(X_tp1_batch).float(), 255.).permute(0, 3, 1, 2)
-
-                    q = Q(X_batch).gather(1, torch.from_numpy(A_batch).unsqueeze(1))
-                    q_next = Q_target(X_tp1_batch).max(1)[0].detach()
-                    yt = torch.from_numpy(R_batch).float() + GAMMA * (1. - torch.from_numpy(D_batch).float()) * q_next
-
-                    loss = F.smooth_l1_loss(q.squeeze(), yt)
-                    optimizer.zero_grad()
-                    loss.backward()
-                    nn.utils.clip_grad_norm_(Q.parameters(), GRAD_NORM_CLIP)
-                    optimizer.step()
-    
-            if env_steps % TARGET_UPDATE == 0:
-                Q_target.load_state_dict(Q.state_dict())
-
-        if env_steps % LOG_ITERS == 0 and env_steps != 0:
-            logger.dump(env_steps, {})
+                # Update target network
+                if t % target_update_freq == 0:
+                    self.Q_target.load_state_dict(self.Q.state_dict())
+                if t % log_update_freq == 0 and curr_step != 0:
+                    logger.dump(curr_step, {})
 
 if __name__=="__main__":
     main()

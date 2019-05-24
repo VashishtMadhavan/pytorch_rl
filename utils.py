@@ -1,31 +1,25 @@
+import os
+import gym
+import h5py
+import numpy as np
+import tensorflow as tf
+
+import vec_env.wrappers as wrappers
 from vec_env.vec_frame_stack import VecFrameStack
 from vec_env.subproc_vec_env import SubprocVecEnv
 
-import os
-import tensorflow as tf
-import numpy as np
-import gym
-from gym import wrappers
-import h5py
-
-def make_atari_env(env_id, num_env, seed, wrapper_kwargs=None, start_index=0):
-    if wrapper_kwargs is None: wrapper_kwargs = {}
+def make_atari_env(env_id, num_threads, seed):
+    game_lives = gym.make(env_id).unwrapped.ale.lives()
+    game_lives = game_lives if game_lives != 0 else 1
     def make_env(rank):
         def _thunk():
             env = wrappers.make_atari(env_id)
             env.seed(seed + rank)
-            return wrappers.wrap_deepmind(env, **wrapper_kwargs)
+            return wrappers.wrap_deepmind(env)
         return _thunk
     np.random.seed(seed)
-    return SubprocVecEnv([make_env(i + start_index) for i in range(num_env)])
-
-def get_env(env_name, seed, num_threads):
-    tenv = gym.make(env_name)
-    game_lives = tenv.unwrapped.ale.lives()
-    if game_lives == 0:
-        game_lives += 1
-    wrapper_dict = {'episode_life': True, 'clip_rewards': False, 'frame_stack': False, 'scale': False}
-    env = VecFrameStack(make_atari_env(env_name, num_threads, seed, wrapper_kwargs=wrapper_dict), 4)
+    env = SubprocVecEnv([make_env(i) for i in range(num_threads)])
+    env = VecFrameStack(env, 4)
     return env, game_lives
 
 class LinearSchedule(object):
@@ -69,7 +63,7 @@ class ReplayMemory(object):
 
 
 class Logger:
-    def __init__(self, expt_dir, num_threads, game_lives):
+    def __init__(self, expt_dir, num_threads, game_lives=1):
         self.log_file = expt_dir + '/log.txt'
         self.num_threads = num_threads
         self.game_lives = game_lives
