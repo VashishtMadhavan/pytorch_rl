@@ -32,7 +32,6 @@ class LinearSchedule(object):
         fraction  = min(float(t) / self.tsteps, 1.0)
         return self.initial_p + fraction * (self.final_p - self.initial_p)
 
-
 class ReplayMemory(object):
     def __init__(self, capacity):
         self.capacity = capacity
@@ -60,7 +59,6 @@ class ReplayMemory(object):
 
     def __len__(self):
         return len(self.memory)
-
 
 class Logger:
     def __init__(self, expt_dir, num_threads, game_lives=1):

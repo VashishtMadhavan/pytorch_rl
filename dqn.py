@@ -8,9 +8,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 from utils import *
 
-# TODO: assign all tensors to gpu device
 class DQN:
-    def __init__(self, env, q_network, args):
+    def __init__(self, env, q_network, device, args):
         self.env = env
         self.obs_shape = self.env.observation_space.shape
         self.args = args
@@ -22,10 +21,14 @@ class DQN:
         for p in self.Q_target.parameters():
             p.requires_grad = False
 
+        self.Q.to(device)
+        self.Q_target.to(device)
+        self.device = self.device
+
     def _select_action(self, obs, epsilon):
-        obs_tensor = torch.from_numpy(obs).float()
+        obs_tensor = torch.from_numpy(obs).float().to(self.device)
         with torch.no_grad():
-            acts = self.Q(obs_tensor).max(1)[0].numpy()
+            acts = self.Q(obs_tensor).max(1)[0].cpu().numpy()
         rand_idx = np.random.random(acts.shape) < epsilon
         acts[rand_idx] = np.random.randint(0, high=self.nA, size=sum(rand_idx))
         return acts.astype(np.int32)
@@ -33,11 +36,11 @@ class DQN:
     def _sample_replay_data(self):
         # Sample data from buffer
         X_batch, A_batch, R_batch, X_tp1_batch, D_batch = self.pool.sample(self.batch_size)
-        X_tensor = torch.from_numpy(X_batch).float()
-        X_tp1_tensor = torch.from_numpy(X_tp1_batch).float()
-        A_tensor = torch.from_numpy(A_batch)
-        R_tensor = torch.from_numpy(R_batch).float()
-        D_tensor = torch.from_numpy(D_batch).float()
+        X_tensor = torch.from_numpy(X_batch).float().to(self.device)
+        X_tp1_tensor = torch.from_numpy(X_tp1_batch).float().to(self.device)
+        A_tensor = torch.from_numpy(A_batch).to(self.device)
+        R_tensor = torch.from_numpy(R_batch).float().to(self.device)
+        D_tensor = torch.from_numpy(D_batch).float().to(self.device)
         return X_tensor, A_tensor, R_tensor, X_tp1_tensor, D_tensor
 
     def _init_train_ops(self):
@@ -69,7 +72,6 @@ class DQN:
             curr_step = self.env.num_envs * t
             eps = self.exploration_schedule.value(curr_step)
             actions = self._select_action(obs, eps)
-            import pdb; pdb.set_trace()
             new_obs, rews, dones, infos = self.env.step(actions)
             for i in range(len(obs)):
                 self.pool.push(obs[i], actions[i], np.sign(rews[i]), new_obs[i], float(dones[i]))

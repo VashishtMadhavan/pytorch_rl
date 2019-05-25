@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torch.distributions import Categorical
 
 class NatureCnn(nn.Module):
     def __init__(self, obs_dim):
@@ -33,3 +34,16 @@ class AtariQNetwork(nn.Module):
     def forward(self, x):
         out = self.encoder(x)
         return self.final(out)
+
+class AtairPolicy(nn.Module):
+    def __init__(self, obs_dim, act_dim):
+        super(AtairPolicy, self).__init__()
+        self.obs_dim = obs_dim
+        self.act_dim = act_dim
+        self.encoder = NatureCnn(self.obs_dim)
+        self.pi = nn.Linear(self.encoder.fc.out_features, self.act_dim)
+        self.v = nn.Linear(self.encoder.fc.out_features, 1)
+
+    def forward(self, x):
+        out = self.encoder(x)
+        return Categorical(logits=self.pi(out)), self.v(out)
