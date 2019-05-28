@@ -22,6 +22,18 @@ def make_atari_env(env_id, num_threads, seed):
     env = VecFrameStack(env, 4)
     return env, game_lives
 
+def gae(rewards, values, gamma=0.99, tau=0.95):
+    values = values.squeeze(2).detach()
+    values = F.pad(values * self.mask, (0, 0, 0, 1)) #TODO: there is no mask
+
+    deltas = rewards + gamma * values[1:] - values[:-1]
+    advantages = torch.zeros_like(deltas).float()
+    gae = torch.zeros_like(deltas[0]).float()
+    for i in range(len(self) - 1, -1, -1):
+        gae = gae * gamma * tau + deltas[i]
+        advantages[i] = gae
+    return advantages
+
 class LinearSchedule(object):
     def __init__(self, tsteps, final_p, initial_p=1.0):
         self.tsteps = tsteps

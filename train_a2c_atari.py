@@ -18,8 +18,9 @@ def parse_args():
 
 	# A2C specific params
 	parser.add_argument('--n_step', type=int, default=32, help='number of steps to collect before update')
-	parser.add_argument('--vf_coef', type=int, default=0.5, help='coef for value function loss')
-	parser.add_argument('--ent_coef', type=int, default=0.01, help='coef for entropy loss')
+	parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
+	parser.add_argument('--vf_coef', type=float, default=0.5, help='coef for value function loss')
+	parser.add_argument('--ent_coef', type=float, default=0.01, help='coef for entropy loss')
 	return parser.parse_args()
 
 def main(args):
