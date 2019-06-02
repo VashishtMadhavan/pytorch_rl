@@ -1,12 +1,13 @@
 import os
 import gym
 import h5py
+import sys
 import numpy as np
-import tensorflow as tf
+import torch
 
-import vec_env.wrappers as wrappers
-from vec_env.vec_frame_stack import VecFrameStack
-from vec_env.subproc_vec_env import SubprocVecEnv
+import common.vec_env.wrappers as wrappers
+from common.vec_env.vec_frame_stack import VecFrameStack
+from common.vec_env.subproc_vec_env import SubprocVecEnv
 
 def make_atari_env(env_id, num_threads, seed):
     game_lives = gym.make(env_id).unwrapped.ale.lives()
@@ -21,18 +22,6 @@ def make_atari_env(env_id, num_threads, seed):
     env = SubprocVecEnv([make_env(i) for i in range(num_threads)])
     env = VecFrameStack(env, 4)
     return env, game_lives
-
-def gae(rewards, values, gamma=0.99, tau=0.95):
-    values = values.squeeze(2).detach()
-    values = F.pad(values * self.mask, (0, 0, 0, 1)) #TODO: there is no mask
-
-    deltas = rewards + gamma * values[1:] - values[:-1]
-    advantages = torch.zeros_like(deltas).float()
-    gae = torch.zeros_like(deltas[0]).float()
-    for i in range(len(self) - 1, -1, -1):
-        gae = gae * gamma * tau + deltas[i]
-        advantages[i] = gae
-    return advantages
 
 class LinearSchedule(object):
     def __init__(self, tsteps, final_p, initial_p=1.0):
@@ -75,13 +64,13 @@ class ReplayMemory(object):
 class Logger:
     def __init__(self, expt_dir, num_threads, game_lives=1):
         self.log_file = expt_dir + '/log.txt'
+        self.expt_dir = expt_dir
         self.num_threads = num_threads
         self.game_lives = game_lives
         self.tot_rews = []
         self.ep_rews = np.zeros(num_threads)
         self.ep_life_counter = np.zeros(num_threads)
-
-    def set_headers(self, headers):
+        headers = ["timestep", 'mean_rew', "best_mean_rew"]
         with open(self.log_file, 'a') as f:
             print(*headers, file=f)
 
@@ -95,10 +84,16 @@ class Logger:
                 self.ep_life_counter[i] = 0
                 self.ep_rews[i] = 0.
 
+    def save_policy(self, policy, itr):
+        with open(os.path.join(self.expt_dir, 'policy-{0}.pt'.format(itr)), 'wb') as f:
+            torch.save(policy.state_dict(), f)
+
     def dump(self, itr, info):
         if len(self.tot_rews) > 0:
             rew_mean = np.mean(self.tot_rews[-100:])
             best_rew_mean = np.max(self.tot_rews)
+        else:
+            return
         
         if itr > 0:
             print_values = [itr, rew_mean, best_rew_mean]

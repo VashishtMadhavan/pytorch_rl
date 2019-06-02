@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from baselines import logger
 
 class AlreadySteppingError(Exception):
     """
@@ -78,7 +77,7 @@ class VecEnv(ABC):
         return self.step_wait()
 
     def render(self):
-        logger.warn('Render not defined for %s'%self)
+        pass
 
 class VecEnvWrapper(VecEnv):
     def __init__(self, venv, observation_space=None, action_space=None):

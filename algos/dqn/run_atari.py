@@ -1,17 +1,18 @@
 import torch
 import os
 import argparse
-from utils import make_atari_env
-from dqn import DQN
-from models import AtariQNetwork
+from algos.dqn.dqn import DQN
+from common.utils import make_atari_env
+from common.models import AtariQNetwork
 
 def parse_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--env', type=str, default='PongNoFrameskip-v4', help='environment name')
-	parser.add_argument('--threads', type=int, default=8, help='number of parallel threads to collect data')
+	parser.add_argument('--threads', type=int, default=100, help='number of parallel threads to collect data')
+	parser.add_argument('--updates', type=int, default=25, help='number of Q updates per step')
 	parser.add_argument('--seed', type=int, default=1234, help='seed for experiment')
 	parser.add_argument('--timesteps', type=int, default=int(1e6), help='number of timesteps to train for')
-	parser.add_argument('--outdir', type=str, default='atari_pong_debug/', help='location of saved output from training')
+	parser.add_argument('--outdir', type=str, default='dqn_debug/', help='location of saved output from training')
 	parser.add_argument('--replay_size', type=int, default=int(1e6), help='number of transitions stored in the replay buffer')
 	parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
 	parser.add_argument('--batch_size', type=int, default=128, help='batch size for training the Q network')

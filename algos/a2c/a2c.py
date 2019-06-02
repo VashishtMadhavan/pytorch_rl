@@ -1,8 +1,6 @@
 import argparse
 import numpy as np
 import os
-from itertools import count
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -39,7 +37,9 @@ class A2C:
         self.optimizer = optim.RMSprop(self.policy.parameters(), lr=self.learning_rate, eps=1e-5)
         return logger
 
-    def sample(self):
+    # TODO: potentially need to call torch.no_grad here
+    # gradients that pass thru during sampling might not be useful
+    def sample(self, logger):
         values, log_probs, entropy, ep_R, ep_D = [], [], [], [], []
         for n in range(self.n_step):
             obs_tensor = torch.from_numpy(self.obs).float().to(self.device)
@@ -48,6 +48,7 @@ class A2C:
             actions = act_tensor.cpu().numpy()
 
             new_obs, rews, dones, infos = self.env.step(actions)
+            logger.log(rews, dones)
             ep_R.append(rews)
             ep_D.append(dones)
             values.append(v)
@@ -75,14 +76,14 @@ class A2C:
         disc_returns = advantages + values
         return log_probs, advantages, values, entropy, disc_returns
 
-    def loss(self):
-        log_probs, advantages, values, entropy, returns = self.sample()
+    def loss(self, logger):
+        log_probs, advantages, values, entropy, returns = self.sample(logger)
         pg_loss = torch.mean(-advantages * torch.exp(log_probs))
         value_loss = torch.mean((values.squeeze() - returns) ** 2)
         entropy_loss = torch.mean(entropy)
         return pg_loss + self.vf_coef * value_loss - self.ent_coef * entropy_loss
 
-    def update(self):
+    def update(self, logger):
         self.optimizer.zero_grad()
         loss = self.loss()
         loss.backward()
@@ -92,12 +93,13 @@ class A2C:
     def train(self):
         logger = self._init_train_ops()
         self.obs = self.env.reset()
-        log_iters = (self.args.timesteps // 100)
+        log_iters = 50
         for t in range(self.train_iters):
             env_steps = t * self.n_batch
-            self.update(episodes)
+            self.update(episodes, logger)
             if t % log_iters == 0 and t != 0:
                 logger.dump(env_steps, {})
+                logger.save_policy(self.polcy, t)
 
 
 if __name__ == '__main__':

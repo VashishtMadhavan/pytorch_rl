@@ -1,12 +1,11 @@
 import gym
 import os
 import numpy as np
-
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from utils import *
+from common.utils import *
 
 class DQN:
     def __init__(self, env, q_network, device, args):
@@ -23,7 +22,7 @@ class DQN:
 
         self.Q.to(device)
         self.Q_target.to(device)
-        self.device = self.device
+        self.device = device
 
     def _select_action(self, obs, epsilon):
         obs_tensor = torch.from_numpy(obs).float().to(self.device)
@@ -38,7 +37,7 @@ class DQN:
         X_batch, A_batch, R_batch, X_tp1_batch, D_batch = self.pool.sample(self.batch_size)
         X_tensor = torch.from_numpy(X_batch).float().to(self.device)
         X_tp1_tensor = torch.from_numpy(X_tp1_batch).float().to(self.device)
-        A_tensor = torch.from_numpy(A_batch).to(self.device)
+        A_tensor = torch.from_numpy(A_batch).long().to(self.device)
         R_tensor = torch.from_numpy(R_batch).float().to(self.device)
         D_tensor = torch.from_numpy(D_batch).float().to(self.device)
         return X_tensor, A_tensor, R_tensor, X_tp1_tensor, D_tensor
@@ -49,6 +48,7 @@ class DQN:
         self.timesteps = self.args.timesteps
         self.learning_rate = self.args.lr
         self.gamma = self.args.gamma
+        self.updates = self.args.updates
         self.batch_size = self.args.batch_size
         if not os.path.exists(self.args.outdir):
             os.mkdir(self.args.outdir)
@@ -60,41 +60,44 @@ class DQN:
         self.Q_target.load_state_dict(self.Q.state_dict()) # copy init Q_vars to target
         return logger
 
+    def _update_q_network(self):
+        for _ in range(self.updates):
+            X_t, A_t, R_t, X_tp1, D_t = self._sample_replay_data()
+            # Compute loss + udpate network
+            self.optimizer.zero_grad()
+            Q_t = self.Q(X_t).gather(1, A_t.view(-1, 1)).squeeze()
+            Q_tp1_max = self.Q_target(X_tp1).detach().max(1)[0]
+            y_t = R_t + self.gamma * (1.0 - D_t) * Q_tp1_max
+            loss = F.smooth_l1_loss(Q_t, y_t)
+            loss.backward()
+            nn.utils.clip_grad_norm_(self.Q.parameters(), 10)
+            self.optimizer.step()
 
+    # TODO: add logic to save network
     def train(self):
         logger = self._init_train_ops()
-
         obs = self.env.reset()
         iters = (self.timesteps // self.env.num_envs) + 1
         target_update_freq = 1000 // self.env.num_envs
-        log_update_freq = (self.timesteps // 100) // self.env.num_envs
+        log_update_freq = 100
         for t in range(iters):
             curr_step = self.env.num_envs * t
             eps = self.exploration_schedule.value(curr_step)
             actions = self._select_action(obs, eps)
             new_obs, rews, dones, infos = self.env.step(actions)
+            logger.log(rews, dones)
             for i in range(len(obs)):
                 self.pool.push(obs[i], actions[i], np.sign(rews[i]), new_obs[i], float(dones[i]))
             obs = new_obs
 
             if curr_step >= 2500:
-                X_t, A_t, R_t, X_tp1, D_t = self._sample_replay_data()
-
-                # Compute loss + udpate network
-                self.optimizer.zero_grad()
-                Q_t = self.Q(X_t).gather(1, A_t)
-                Q_tp1_max = self.Q_target(X_tp1).detach().max(1)
-                y_t = R_t + self.gamma * (1.0 - D_t) * Q_tp1_max
-                loss = F.smooth_l1_loss(Q_t, y_t)
-                loss.backward()
-                nn.utils.clip_grad_norm_(self.Q.parameters(), 10)
-                self.optimizer.step()
-
+                self._update_q_network()
                 # Update target network
                 if t % target_update_freq == 0:
                     self.Q_target.load_state_dict(self.Q.state_dict())
-                if t % log_update_freq == 0 and curr_step != 0:
+                if t % log_update_freq == 0 and t != 0:
                     logger.dump(curr_step, {})
+                    logger.save_policy(self.Q, t)
 
 if __name__=="__main__":
     main()
