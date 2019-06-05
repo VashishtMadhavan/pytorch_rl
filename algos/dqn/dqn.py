@@ -25,9 +25,9 @@ class DQN:
         self.device = device
 
     def _select_action(self, obs, epsilon):
-        obs_tensor = torch.from_numpy(obs).float().to(self.device)
+        obs_tensor = (torch.from_numpy(obs).float() / 255.).to(self.device)
         with torch.no_grad():
-            acts = self.Q(obs_tensor).max(1)[0].cpu().numpy()
+            acts = self.Q(obs_tensor).max(1)[1].cpu().numpy()
         rand_idx = np.random.random(acts.shape) < epsilon
         acts[rand_idx] = np.random.randint(0, high=self.nA, size=sum(rand_idx))
         return acts.astype(np.int32)
@@ -35,15 +35,15 @@ class DQN:
     def _sample_replay_data(self):
         # Sample data from buffer
         X_batch, A_batch, R_batch, X_tp1_batch, D_batch = self.pool.sample(self.batch_size)
-        X_tensor = torch.from_numpy(X_batch).float().to(self.device)
-        X_tp1_tensor = torch.from_numpy(X_tp1_batch).float().to(self.device)
+        X_tensor = (torch.from_numpy(X_batch).float() / 255.).to(self.device)
+        X_tp1_tensor = (torch.from_numpy(X_tp1_batch).float() / 255.).to(self.device)
         A_tensor = torch.from_numpy(A_batch).long().to(self.device)
         R_tensor = torch.from_numpy(R_batch).float().to(self.device)
         D_tensor = torch.from_numpy(D_batch).float().to(self.device)
         return X_tensor, A_tensor, R_tensor, X_tp1_tensor, D_tensor
 
     def _init_train_ops(self):
-        self.exploration_schedule = LinearSchedule(self.args.timesteps, final_p=0.01)
+        self.exploration_schedule = LinearSchedule(int(0.1 * self.args.timesteps), final_p=0.01)
         self.pool = ReplayMemory(capacity=self.args.replay_size)
         self.timesteps = self.args.timesteps
         self.learning_rate = self.args.lr
@@ -73,7 +73,6 @@ class DQN:
             nn.utils.clip_grad_norm_(self.Q.parameters(), 10)
             self.optimizer.step()
 
-    # TODO: add logic to save network
     def train(self):
         logger = self._init_train_ops()
         obs = self.env.reset()

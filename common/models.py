@@ -5,6 +5,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.distributions import Categorical
 
+def xavier_init(m):
+    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
+        nn.init.xavier_uniform_(m.weight)
+        m.bias.data.zero_()
+
 class NatureCnn(nn.Module):
     def __init__(self, obs_dim):
         super(NatureCnn, self).__init__()
@@ -30,19 +35,21 @@ class AtariQNetwork(nn.Module):
         self.act_dim = act_dim
         self.encoder = NatureCnn(self.obs_dim)
         self.final = nn.Linear(self.encoder.fc.out_features, self.act_dim)
+        self.apply(xavier_init)
         
     def forward(self, x):
         out = self.encoder(x)
         return self.final(out)
 
-class AtairPolicy(nn.Module):
+class AtariPolicy(nn.Module):
     def __init__(self, obs_dim, act_dim):
-        super(AtairPolicy, self).__init__()
+        super(AtariPolicy, self).__init__()
         self.obs_dim = obs_dim
         self.act_dim = act_dim
         self.encoder = NatureCnn(self.obs_dim)
         self.pi = nn.Linear(self.encoder.fc.out_features, self.act_dim)
         self.v = nn.Linear(self.encoder.fc.out_features, 1)
+        self.apply(xavier_init)
 
     def forward(self, x):
         out = self.encoder(x)
