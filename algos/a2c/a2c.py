@@ -32,14 +32,14 @@ class A2C:
         if not os.path.exists(self.args.outdir):
             os.mkdir(self.args.outdir)
         if hasattr(self.args, 'game_lives'):
-            logger = Logger(self.args.outdir, self.env.num_envs, self.args.game_lives)
+            self.logger = Logger(self.args.outdir, self.env.num_envs, self.args.game_lives)
         else:
-            logger = Logger(self.args.outdir, self.env.num_envs)
+            self.logger = Logger(self.args.outdir, self.env.num_envs)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
-        return logger
 
     # TODO: add GAE
-    def sample(self, logger):
+    def sample(self):
+        log_probs, values = [], []
         ep_X, ep_A, ep_R, ep_D = [], [], [], []
         for n in range(self.n_step):
             with torch.no_grad():
@@ -49,11 +49,13 @@ class A2C:
                 actions = act_tensor.cpu().numpy()
 
                 new_obs, rews, dones, infos = self.env.step(actions)
-                logger.log(rews, dones)
+                self.logger.log(rews, dones)
                 ep_X.append(self.obs)
                 ep_A.append(actions)
                 ep_R.append(rews)
                 ep_D.append(dones.astype(np.float32))
+                values.append(v)
+                log_probs.append(pi.log_prob(act_tensor))
                 self.obs = new_obs
         with torch.no_grad():
             last_obs_tensor = (torch.from_numpy(self.obs).float() / 255.).to(self.device)
@@ -66,18 +68,27 @@ class A2C:
             _ret = ep_R[i] + self.gamma * (1.0 - ep_D[i]) * _ret
             returns[i] = _ret
 
-        ep_X = torch.from_numpy(np.array(ep_X, dtype=np.float32) / 255.).to(self.device)
-        ep_A = torch.from_numpy(np.array(ep_A, dtype=np.int32)).to(self.device)
-        returns = torch.from_numpy(returns).to(self.device)
-        return ep_X, ep_A, returns
+        sample_dict = {}
+        sample_dict['old_log_probs'] = torch.stack(log_probs)
+        sample_dict['old_values'] = torch.stack(values)
+        sample_dict['ep_X'] = torch.from_numpy(np.array(ep_X, dtype=np.float32) / 255.).to(self.device)
+        sample_dict['ep_A'] = torch.from_numpy(np.array(ep_A, dtype=np.int32)).to(self.device)
+        sample_dict['returns'] = torch.from_numpy(returns).to(self.device)
+        return sample_dict
 
-    def _forward_policy(self, ep_X, ep_A, returns):
+    def _forward_policy(self, sample_dict, ratio=False):
+        ep_X = sample_dict['ep_X']; ep_A = sample_dict['ep_A']
+        old_log_probs = sample_dict['old_log_probs']
+        returns = sample_dict['returns']
         values, entropy, log_probs = [], [], []
         for t in range(self.n_step):
             pi, v = self.policy(ep_X[t])
             values.append(v)
             entropy.append(pi.entropy())
-            log_probs.append(pi.log_prob(ep_A[t]))
+            if ratio:
+                log_probs.append(pi.log_prob(ep_A[t]) - old_log_probs[t])
+            else:
+                log_probs.append(pi.log_prob(ep_A[t]))
         log_probs = torch.stack(log_probs)
         if log_probs.dim() > 2:
             log_probs = torch.sum(log_probs, dim=2)
@@ -86,30 +97,31 @@ class A2C:
         advantages = returns - values.squeeze()
         return log_probs, advantages, values, entropy
 
-    def loss(self, ep_X, ep_A, returns):
-        log_probs, advantages, values, entropy = self._forward_policy(ep_X, ep_A, returns)
+    # TODO: add logging for different loss components
+    def loss(self, sample_dict):
+        log_probs, advantages, values, entropy = self._forward_policy(sample_dict)
         pg_loss = -(advantages.detach() * log_probs).mean()
         value_loss = advantages.pow(2).mean()
         entropy_loss = torch.mean(entropy)
         return pg_loss + self.vf_coef * value_loss - self.ent_coef * entropy_loss
 
-    def update(self, ep_X, ep_A, returns):
+    def update(self, sample_dict):
         self.optimizer.zero_grad()
-        loss = self.loss(ep_X, ep_A, returns)
+        loss = self.loss(sample_dict)
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
         self.optimizer.step()
 
     def train(self):
-        logger = self._init_train_ops()
+        self._init_train_ops()
         self.obs = self.env.reset()
         for t in range(self.train_iters):
             env_steps = t * self.n_batch
-            ep_X, ep_A, returns = self.sample(logger)
-            self.update(ep_X, ep_A, returns)
+            sample_dict = self.sample()
+            self.update(sample_dict)
             if env_steps % int(1e5) == 0 and env_steps != 0:
-                logger.dump(env_steps, {})
-                logger.save_policy(self.policy, t)
+                self.logger.dump(env_steps, {})
+                self.logger.save_policy(self.policy, t)
 
 
 if __name__ == '__main__':
