@@ -17,6 +17,7 @@ class DQN:
 
         self.Q = q_network(obs_dim=self.obs_shape[-1], act_dim=self.nA)
         self.Q_target = q_network(obs_dim=self.obs_shape[-1], act_dim=self.nA)
+
         # Freezing target network weights
         for p in self.Q_target.parameters():
             p.requires_grad = False
@@ -79,7 +80,6 @@ class DQN:
         obs = self.env.reset()
         iters = (self.timesteps // self.env.num_envs) + 1
         target_update_freq = 1000 // self.env.num_envs
-        log_update_freq = 100
         start_time = time.time()
         for t in range(iters):
             curr_step = self.env.num_envs * t
@@ -102,7 +102,7 @@ class DQN:
                 self.logger.set("best_mean_rew", self.rew_tracker.best_mean_rew)
                 self.logger.set("episodes", self.rew_tracker.total_episodes)
                 self.logger.set("time_elapsed", time.time() - start_time)
-                if t % log_update_freq == 0 and t != 0:
+                if ((t + 1) * sefl.env.num_envs) % int(1e5) == 0 and t != 0:
                     self.logger.dump()
                     self.logger.save_policy(self.Q, curr_step)
 
