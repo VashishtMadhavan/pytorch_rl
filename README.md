@@ -2,9 +2,9 @@
 
 ### Algorithms Implemented
 
-- DQN - {Discrete Env}
-- A2C - {Discrete Env}
-- PPO - {Discrete Env}
+- DQN - {Discrete Action}
+- A2C - {Discrete Action}
+- PPO - {Discrete Action}
 
 ### Instructions to Train Each Algorithm
 
@@ -25,3 +25,4 @@ python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' # to train a PPO agent 
 
 ### TODO
 - validate PPO
+- setup for continuous e

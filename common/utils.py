@@ -8,6 +8,8 @@ import torch
 import common.vec_env.wrappers as wrappers
 from common.vec_env.vec_frame_stack import VecFrameStack
 from common.vec_env.subproc_vec_env import SubprocVecEnv
+from common.vec_env.dummy_vec_env import DummyVecEnv
+from common.vec_env.vec_normalize import VecNormalize
 
 def make_atari_env(env_id, num_threads, seed):
     game_lives = gym.make(env_id).unwrapped.ale.lives()
@@ -22,6 +24,14 @@ def make_atari_env(env_id, num_threads, seed):
     env = SubprocVecEnv([make_env(i) for i in range(num_threads)])
     env = VecFrameStack(env, 4)
     return env, game_lives
+
+def make_mujoco_env(env_id):
+    def make_env():
+        env = gym.make(env_id)
+        return env
+    env = DummyVecEnv([make_env])
+    env = VecNormalize(env)
+    return env
 
 class LinearSchedule(object):
     def __init__(self, tsteps, final_p, initial_p=1.0):
