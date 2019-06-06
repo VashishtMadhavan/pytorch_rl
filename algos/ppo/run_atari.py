@@ -11,13 +11,13 @@ def parse_args():
 	parser.add_argument('--threads', type=int, default=16, help='number of parallel threads to collect data')
 	parser.add_argument('--seed', type=int, default=0, help='seed for experiment')
 	parser.add_argument('--timesteps', type=int, default=int(10e6), help='number of timesteps to train for')
-	parser.add_argument('--outdir', type=str, default='a2c_debug/', help='location of saved output from training')
+	parser.add_argument('--outdir', type=str, default='ppo_debug/', help='location of saved output from training')
 	parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
 	parser.add_argument('--lr', type=float, default=2.5e-4, help='learning rate for training the policy')
 	parser.add_argument('--gpu', type=str, default='0', help='which GPU to use. If no GPU use -1')
 
 	# PPO specific params
-	parser.add_argument('--n_step', type=int, default=128, help='number of steps to collect before update')
+	parser.add_argument('--n_step', type=int, default=100, help='number of steps to collect before update')
 	parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
 	parser.add_argument('--vf_coef', type=float, default=0.25, help='coef for value function loss')
 	parser.add_argument('--ent_coef', type=float, default=0.01, help='coef for entropy loss')

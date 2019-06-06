@@ -10,11 +10,10 @@ class PPO(A2C):
     def _init_train_ops(self):
         super(PPO, self)._init_train_ops()
         # PPO specific parameters
-        self.surr_batches = self.args.surrogate_batches
-        self.surr_epochs = self.args.surrogate_epochs
+        self.surr_batches = self.args.surr_batches
+        self.surr_epochs = self.args.surr_epochs
         self.surr_batch_size = self.threads // self.surr_batches
         self.clip_frac = self.args.clip_frac
-        return logger
 
     def loss(self, sample_dict, idx):
         log_ratios, advantages, values, entropy = self._forward_policy(sample_dict, ratio=True)
@@ -33,6 +32,9 @@ class PPO(A2C):
 
         # entropy loss
         entropy_loss = torch.mean(entropy[:, idx])
+        self.logger.set("policy_loss", pg_loss.item())
+        self.logger.set("value_loss", value_loss.item())
+        self.logger.set("entropy", entropy_loss.item())
         return pg_loss + self.vf_coef * value_loss - self.ent_coef * entropy_loss
 
     def update(self, sample_dict):
@@ -44,7 +46,6 @@ class PPO(A2C):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.policy.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-
 
 
 if __name__ == '__main__':
