@@ -61,18 +61,13 @@ class ReplayMemory(object):
     def __len__(self):
         return len(self.memory)
 
-class Logger:
-    def __init__(self, expt_dir, num_threads, game_lives=1):
-        self.log_file = expt_dir + '/log.txt'
-        self.expt_dir = expt_dir
+class RewardTracker:
+    def __init__(self, num_threads, game_lives=1):
         self.num_threads = num_threads
         self.game_lives = game_lives
         self.tot_rews = []
         self.ep_rews = np.zeros(num_threads)
         self.ep_life_counter = np.zeros(num_threads)
-        headers = ["timestep", 'mean_rew', "best_mean_rew"]
-        with open(self.log_file, 'a') as f:
-            print(*headers, file=f)
 
     def log(self, rewards, dones):
         self.ep_rews += rewards
@@ -84,28 +79,48 @@ class Logger:
                 self.ep_life_counter[i] = 0
                 self.ep_rews[i] = 0.
 
-    def save_policy(self, policy, itr):
-        with open(os.path.join(self.expt_dir, 'policy-{0}.pt'.format(itr)), 'wb') as f:
+    @property
+    def best_mean_rew(self):
+        return np.nan if len(self.tot_rews) == 0 else np.max(self.tot_rews)
+
+    @property
+    def mean_rew(self):
+        return np.nan if len(self.tot_rews) == 0 else np.mean(self.tot_rews[-100:])
+
+    @property
+    def total_episodes(self):
+        return len(self.tot_rews)
+
+
+class Logger:
+    def __init__(self, expt_dir):
+        self.log_file = expt_dir + '/log.txt'
+        self.expt_dir = expt_dir
+
+    def set_headers(self, headers):
+        self.headers = headers
+        self.metric_dict = {k: None for k in headers}
+        with open(self.log_file, 'a') as f:
+            print(*headers, file=f)
+
+    def set(self, key, value):
+        if key not in self.metric_dict:
+            raise ValueError
+        self.metric_dict[key] = value
+
+    def save_policy(self, policy, tstep):
+        with open(os.path.join(self.expt_dir, 'policy-{0}.pt'.format(tstep)), 'wb') as f:
             torch.save(policy.state_dict(), f)
 
-    def dump(self, itr, info):
-        if len(self.tot_rews) > 0:
-            rew_mean = np.mean(self.tot_rews[-100:])
-            best_rew_mean = np.max(self.tot_rews)
-        else:
+    def dump(self):
+        print_values = []
+        for k in self.headers:
+            key_val = self.metric_dict[k]
+            print('{} {}'.format(k, key_val))
+            print_values.append(key_val)
+        print()
+        if np.nan in print_values:
             return
-        
-        if itr > 0:
-            print_values = [itr, rew_mean, best_rew_mean]
-            print("Timestep %d" % (itr,))
-            print("mean reward (100 episodes) %f" % rew_mean)
-            print("best mean reward %f" % best_rew_mean)
-            print("episodes %d" % len(self.tot_rews))
-            for k in info:
-                print(k + ' ' + str(info[k]))
-                print_values.append(info[k])
-            print()
-            sys.stdout.flush()
-
-            with open(self.log_file, 'a') as f:
-                print(*print_values, file=f)
+        sys.stdout.flush()
+        with open(self.log_file, 'a') as f:
+            print(*print_values, file=f)

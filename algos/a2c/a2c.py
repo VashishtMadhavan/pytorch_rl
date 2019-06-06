@@ -1,11 +1,12 @@
 import argparse
 import numpy as np
 import os
+import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from common.utils import Logger
+from common.utils import Logger, RewardTracker
 
 class A2C:
     def __init__(self, env, policy, device, args):
@@ -28,14 +29,17 @@ class A2C:
         self.n_batch = self.n_step * self.threads
         self.train_iters = (self.args.timesteps // self.n_batch) + 1
         self.max_grad_norm = 0.5
-
         if not os.path.exists(self.args.outdir):
             os.mkdir(self.args.outdir)
-        if hasattr(self.args, 'game_lives'):
-            self.logger = Logger(self.args.outdir, self.env.num_envs, self.args.game_lives)
-        else:
-            self.logger = Logger(self.args.outdir, self.env.num_envs)
+
+        self.rew_tracker = RewardTracker(self.threads, self.args.game_lives)
+        self.logger = Logger(self.args.outdir)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
+
+        # TODO: may not be the best way to do this
+        headers = ["timestep", 'mean_rew', "best_mean_rew", "episodes",
+                    "policy_loss", "value_loss", "entropy", "time_elapsed"]
+        self.logger.set_headers(headers)
 
     # TODO: add GAE
     def sample(self):
@@ -49,7 +53,7 @@ class A2C:
                 actions = act_tensor.cpu().numpy()
 
                 new_obs, rews, dones, infos = self.env.step(actions)
-                self.logger.log(rews, dones)
+                self.rew_tracker.log(rews, dones)
                 ep_X.append(self.obs)
                 ep_A.append(actions)
                 ep_R.append(rews)
@@ -70,7 +74,7 @@ class A2C:
 
         sample_dict = {}
         sample_dict['old_log_probs'] = torch.stack(log_probs)
-        sample_dict['old_values'] = torch.stack(values)
+        sample_dict['old_values'] = torch.stack(values).squeeze()
         sample_dict['ep_X'] = torch.from_numpy(np.array(ep_X, dtype=np.float32) / 255.).to(self.device)
         sample_dict['ep_A'] = torch.from_numpy(np.array(ep_A, dtype=np.int32)).to(self.device)
         sample_dict['returns'] = torch.from_numpy(returns).to(self.device)
@@ -97,12 +101,14 @@ class A2C:
         advantages = returns - values.squeeze()
         return log_probs, advantages, values, entropy
 
-    # TODO: add logging for different loss components
     def loss(self, sample_dict):
         log_probs, advantages, values, entropy = self._forward_policy(sample_dict)
         pg_loss = -(advantages.detach() * log_probs).mean()
         value_loss = advantages.pow(2).mean()
         entropy_loss = torch.mean(entropy)
+        self.logger.set("policy_loss", pg_loss.item())
+        self.logger.set("value_loss", value_loss.item())
+        self.logger.set("entropy", entropy_loss.item())
         return pg_loss + self.vf_coef * value_loss - self.ent_coef * entropy_loss
 
     def update(self, sample_dict):
@@ -115,13 +121,22 @@ class A2C:
     def train(self):
         self._init_train_ops()
         self.obs = self.env.reset()
+        start_time = time.time()
         for t in range(self.train_iters):
-            env_steps = t * self.n_batch
+            # updating network
+            env_steps = (t + 1) * self.n_batch
             sample_dict = self.sample()
             self.update(sample_dict)
-            if env_steps % int(1e5) == 0 and env_steps != 0:
-                self.logger.dump(env_steps, {})
-                self.logger.save_policy(self.policy, t)
+
+            # logging values
+            self.logger.set("timestep", env_steps)
+            self.logger.set("time_elapsed", time.time() - start_time)
+            self.logger.set("mean_rew", self.rew_tracker.mean_rew)
+            self.logger.set("best_mean_rew", self.rew_tracker.best_mean_rew)
+            self.logger.set("episodes", self.rew_tracker.total_episodes)
+            if env_steps % int(1e5) == 0:
+                self.logger.dump()
+                self.logger.save_policy(self.policy, env_steps)
 
 
 if __name__ == '__main__':

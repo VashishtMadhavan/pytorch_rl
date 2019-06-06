@@ -1,5 +1,6 @@
 import gym
 import os
+import time
 import numpy as np
 import torch
 import torch.nn as nn
@@ -52,13 +53,13 @@ class DQN:
         self.batch_size = self.args.batch_size
         if not os.path.exists(self.args.outdir):
             os.mkdir(self.args.outdir)
-        if hasattr(self.args, 'game_lives'):
-            logger = Logger(self.args.outdir, self.env.num_envs, self.args.game_lives)
-        else:
-            logger = Logger(self.args.outdir, self.env.num_envs)
+
+        self.rew_tracker = RewardTracker(self.env.num_envs, self.args.game_lives)
+        self.logger = Logger(self.args.outdir)
+        headers = ["timesteps", "mean_rew", "best_mean_rew", "episodes", "time_elapsed"]
+        self.logger.set_headers(headers)
         self.optimizer = optim.Adam(self.Q.parameters(), lr=self.learning_rate)
         self.Q_target.load_state_dict(self.Q.state_dict()) # copy init Q_vars to target
-        return logger
 
     def _update_q_network(self):
         for _ in range(self.updates):
@@ -74,17 +75,18 @@ class DQN:
             self.optimizer.step()
 
     def train(self):
-        logger = self._init_train_ops()
+        self._init_train_ops()
         obs = self.env.reset()
         iters = (self.timesteps // self.env.num_envs) + 1
         target_update_freq = 1000 // self.env.num_envs
         log_update_freq = 100
+        start_time = time.time()
         for t in range(iters):
             curr_step = self.env.num_envs * t
             eps = self.exploration_schedule.value(curr_step)
             actions = self._select_action(obs, eps)
             new_obs, rews, dones, infos = self.env.step(actions)
-            logger.log(rews, dones)
+            self.rew_tracker.log(rews, dones)
             for i in range(len(obs)):
                 self.pool.push(obs[i], actions[i], np.sign(rews[i]), new_obs[i], float(dones[i]))
             obs = new_obs
@@ -94,9 +96,15 @@ class DQN:
                 # Update target network
                 if t % target_update_freq == 0:
                     self.Q_target.load_state_dict(self.Q.state_dict())
+                # Logging metrics
+                self.logger.set("timesteps", (t + 1) * self.env.num_envs)
+                self.logger.set("mean_rew", self.rew_tracker.mean_rew)
+                self.logger.set("best_mean_rew", self.rew_tracker.best_mean_rew)
+                self.logger.set("episodes", self.rew_tracker.total_episodes)
+                self.logger.set("time_elapsed", time.time() - start_time)
                 if t % log_update_freq == 0 and t != 0:
-                    logger.dump(curr_step, {})
-                    logger.save_policy(self.Q, t)
+                    self.logger.dump()
+                    self.logger.save_policy(self.Q, curr_step)
 
 if __name__=="__main__":
     main()
