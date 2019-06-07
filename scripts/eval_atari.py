@@ -1,6 +1,6 @@
 """
 
-Script to evaluate and visualize a policy
+Script to evaluate and visualize a Atari policies
 
 """
 import gym
