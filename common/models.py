@@ -15,26 +15,25 @@ class MLPPolicy(nn.Module):
         self.obs_dim = obs_dim
         self.act_dim = act_dim
         self.policy = nn.Sequential(
-            nn.Linear(self.obs_dim, 64)
+            nn.Linear(self.obs_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, 64)
+            nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, self.act_dim)
         )
         self.value = nn.Sequential(
-            nn.Linear(self.obs_dim, 64)
+            nn.Linear(self.obs_dim, 64),
             nn.ReLU(),
-            nn.Linear(64, 64)
+            nn.Linear(64, 64),
             nn.ReLU(),
             nn.Linear(64, self.act_dim)
         )
-        # TODO: figure out if this is correct
-        self.action_var = torch.full((self.act_dim,), 0.36)
+        self.action_noise = torch.ones(self.act_dim) * 0.36
         self.apply(xavier_init)
 
     def forward(self, x):
         act_mean = self.policy(x)
-        pi = MultivariateNormal(act_mean, torch.diag(self.action_var))
+        pi = MultivariateNormal(act_mean, torch.diag(self.action_noise))
         return pi, self.value(x)
 
 class NatureCnn(nn.Module):
@@ -81,7 +80,6 @@ class AtariPolicy(nn.Module):
     def forward(self, x):
         out = self.encoder(x)
         return Categorical(logits=self.pi(out)), self.v(out)
-
 
 class AtariGRUPolicy(nn.Module):
     def __init__(self, obs_dim, act_dim, gru_size=256):

@@ -11,7 +11,7 @@ from common.vec_env.subproc_vec_env import SubprocVecEnv
 from common.vec_env.dummy_vec_env import DummyVecEnv
 from common.vec_env.vec_normalize import VecNormalize
 
-def make_atari_env(env_id, num_threads, seed):
+def make_atari_env(env_id, num_threads, seed, frame_stack=4):
     game_lives = gym.make(env_id).unwrapped.ale.lives()
     game_lives = game_lives if game_lives != 0 else 1
     def make_env(rank):
@@ -22,7 +22,7 @@ def make_atari_env(env_id, num_threads, seed):
         return _thunk
     np.random.seed(seed)
     env = SubprocVecEnv([make_env(i) for i in range(num_threads)])
-    env = VecFrameStack(env, 4)
+    env = VecFrameStack(env, frame_stack)
     return env, game_lives
 
 def make_mujoco_env(env_id):
