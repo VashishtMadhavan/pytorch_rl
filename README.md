@@ -24,5 +24,5 @@ python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' # to train a PPO agent 
 ```
 
 ### TODO
-- validate PPO
-- setup for continuous e
+- PPO for continuous actions
+- A2C/PPO for recurrent policies
