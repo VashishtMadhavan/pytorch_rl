@@ -60,7 +60,7 @@ class A2C:
         log_probs, values = [], []
         ep_X, ep_A, ep_R, ep_D = [], [], [], []
         if self.recurrent:
-            self.start_hx = hx
+            self.start_hx = self.hx.clone()
         for n in range(self.n_step):
             with torch.no_grad():
                 obs_tensor = (torch.from_numpy(self.obs).float()/ 255.).to(self.device)
