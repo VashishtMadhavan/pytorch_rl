@@ -27,4 +27,3 @@ python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' --recurr # to train a r
 
 ### TODO
 - Validate PPO for continuous actions
-- Validate A2C/PPO for recurrent policies
