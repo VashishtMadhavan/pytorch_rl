@@ -89,7 +89,7 @@ class AtariGRUPolicy(nn.Module):
         self.gru_size = gru_size
         self.encoder = NatureCnn(self.obs_dim)
         self.gru = nn.GRUCell(self.encoder.fc.out_features, hidden_size=self.gru_size)
-        self.pi = nn.Linear(self.gru_size, self.output_size)
+        self.pi = nn.Linear(self.gru_size, self.act_dim)
         self.v = nn.Linear(self.gru_size, 1)
         self.apply(xavier_init)
 

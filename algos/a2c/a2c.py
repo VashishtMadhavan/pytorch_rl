@@ -120,7 +120,7 @@ class A2C:
                 log_probs -= old_log_probs
         else:
             values, entropy, log_probs = [], [], []
-            hx = self.start_hx
+            hx = self.start_hx[idx, :]
             for t in range(self.n_step):
                 pi, v, hx = self.policy(ep_X[t], hx)
                 values.append(v)
@@ -156,7 +156,7 @@ class A2C:
         self._init_train_ops()
         self.obs = self.env.reset()
         if self.recurrent:
-            self.hx = torch.zeros(self.threads, self.gru).to(self.device)
+            self.hx = torch.zeros(self.threads, self.gru_size).to(self.device)
         start_time = time.time()
         for t in range(self.train_iters):
             # Updating network
