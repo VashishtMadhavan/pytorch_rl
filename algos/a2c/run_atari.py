@@ -15,6 +15,7 @@ def parse_args():
     parser.add_argument('--gamma', type=float, default=0.99, help='discount factor')
     parser.add_argument('--lr', type=float, default=2.5e-4, help='learning rate for training the policy')
     parser.add_argument('--recurr', action='store_true', help='whether to use a recurrent policy or not')
+    parser.add_argument('--log_iters', type=int, default=int(1e5), help='log at this frequency of timesteps')
     parser.add_argument('--gpu', type=str, default='0', help='which GPU to use. If no GPU use -1')
 
     # A2C specific params

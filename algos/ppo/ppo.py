@@ -13,7 +13,10 @@ class PPO(A2C):
         # PPO specific parameters
         self.surr_batches = self.args.surr_batches
         self.surr_epochs = self.args.surr_epochs
-        self.surr_batch_size = self.threads // self.surr_batches
+        if self.threads >= self.surr_batches:
+            self.surr_batch_size = self.threads // self.surr_batches
+        else:
+            self.surr_batch_size = 1
         self.clip_frac = self.args.clip_frac
 
     def loss(self, sample_dict, idx):

@@ -13,11 +13,15 @@ class A2C:
         self.env = env
         self.args = args
         self.obs_shape = self.env.observation_space.shape
-        self.nA = self.env.action_space.n
-        self.policy = policy(obs_dim=self.obs_shape[-1], act_dim=self.nA)
+        if hasattr(self.env.action_space, 'n'):
+            # Discrete action space
+            self.act_dim = self.env.action_space.n
+        else:
+            self.act_dim = self.env.action_space.shape[-1]
+        self.policy = policy(obs_dim=self.obs_shape[-1], act_dim=self.act_dim)
         self.policy.to(device)
         self.device = device
-        self.recurrent = self.args.recurr
+        self.recurrent = self.args.recurr if hasattr(self.args, 'recurr') else False
         self.gru_size = 256
 
     def _gae(self, values, last_v, ep_R, ep_D):
@@ -35,19 +39,23 @@ class A2C:
 
     def _init_train_ops(self):
         self.n_step = self.args.n_step
+        self.log_iters = self.args.log_iters
         self.learning_rate = self.args.lr
         self.gamma = self.args.gamma
         self.tau = self.args.tau
         self.vf_coef = self.args.vf_coef
         self.ent_coef = self.args.ent_coef
-        self.threads = self.args.threads
+        self.threads = self.env.num_envs
         self.n_batch = self.n_step * self.threads
         self.train_iters = (self.args.timesteps // self.n_batch) + 1
         self.max_grad_norm = 0.5
         if not os.path.exists(self.args.outdir):
             os.mkdir(self.args.outdir)
 
-        self.rew_tracker = RewardTracker(self.threads, self.args.game_lives)
+        if hasattr(self.args, 'game_lives'):
+            self.rew_tracker = RewardTracker(self.threads, self.args.game_lives)
+        else:
+            self.rew_tracker = RewardTracker(self.threads, 1)
         self.logger = Logger(self.args.outdir)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
 
@@ -90,14 +98,13 @@ class A2C:
                 _, last_v, _ = self.policy(last_obs_tensor, self.hx)
             else:
                 _, last_v = self.policy(last_obs_tensor)
-
-        values = torch.stack(values).squeeze()
+        values = torch.stack(values).squeeze(dim=2)
         returns = self._gae(values, last_v, ep_R, ep_D)
         sample_dict = {}
         sample_dict['old_log_probs'] = torch.stack(log_probs)
         sample_dict['old_values'] = values
         sample_dict['ep_X'] = torch.from_numpy(np.array(ep_X, dtype=np.float32) / 255.).to(self.device)
-        sample_dict['ep_A'] = torch.from_numpy(np.array(ep_A, dtype=np.int32)).to(self.device)
+        sample_dict['ep_A'] = torch.from_numpy(np.array(ep_A, dtype=np.float32)).to(self.device)
         sample_dict['returns'] = torch.from_numpy(returns).to(self.device)
         return sample_dict
 
@@ -115,7 +122,10 @@ class A2C:
             pi, values = self.policy(ep_X)
             entropy = pi.entropy().view(self.n_step, idx.shape[0])
             values = values.view(self.n_step, idx.shape[0])
-            log_probs = pi.log_prob(ep_A.view(-1)).view(self.n_step, idx.shape[0])
+            if len(ep_A.shape) > 2:
+                log_probs = pi.log_prob(ep_A.view(-1, self.act_dim)).view(self.n_step, idx.shape[0])
+            else:
+                log_probs = pi.log_prob(ep_A.view(-1)).view(self.n_step, idx.shape[0])
             if ratio:
                 log_probs -= old_log_probs
         else:
@@ -130,15 +140,15 @@ class A2C:
                 else:
                     log_probs.append(pi.log_prob(ep_A[t]))
             log_probs = torch.stack(log_probs)
-            values = torch.stack(values)
+            values = torch.stack(values).squeeze(dim=2)
             entropy = torch.stack(entropy)
-        advantages = returns - values.squeeze().detach()
+        advantages = returns - values.detach()
         return log_probs, advantages, values, entropy
 
     def loss(self, sample_dict):
         log_probs, advantages, values, entropy = self._forward_policy(sample_dict)
         pg_loss = -(advantages * log_probs).mean()
-        value_loss = (sample_dict['returns'] - values.squeeze()).pow(2).mean()
+        value_loss = (sample_dict['returns'] - values).pow(2).mean()
         entropy_loss = torch.mean(entropy)
         self.logger.set("policy_loss", pg_loss.item())
         self.logger.set("value_loss", value_loss.item())
@@ -170,7 +180,7 @@ class A2C:
             self.logger.set("mean_rew", self.rew_tracker.mean_rew)
             self.logger.set("best_mean_rew", self.rew_tracker.best_mean_rew)
             self.logger.set("episodes", self.rew_tracker.total_episodes)
-            if env_steps % int(1e5) == 0:
+            if env_steps % self.log_iters == 0:
                 self.logger.dump()
                 self.logger.save_policy(self.policy, env_steps)
 

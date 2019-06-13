@@ -12,6 +12,7 @@ def xavier_init(m):
 
 class MLPPolicy(nn.Module):
     def __init__(self, obs_dim, act_dim):
+        super(MLPPolicy, self).__init__()
         self.obs_dim = obs_dim
         self.act_dim = act_dim
         self.policy = nn.Sequential(
@@ -26,7 +27,7 @@ class MLPPolicy(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(64, self.act_dim)
+            nn.Linear(64, 1)
         )
         self.action_noise = torch.ones(self.act_dim) * 0.36
         self.apply(xavier_init)
