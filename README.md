@@ -23,6 +23,8 @@ To train a PPO agent
 ```
 python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' # to train a FF PPO agent on Pong
 python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' --recurr # to train a recurrent PPO agent on Pong
+
+python -m algos.ppo.run_mujoco --env 'HalfCheetah-v2' # train an MLP agent on Ant
 ```
 ### Evaluation of Trained Agents
 
@@ -37,3 +39,4 @@ python -m scripts.eval_mujoco --env {env_name} --algo {ppo} --checkpoint {policy
 
 ### TODO
 - Validate PPO for continuous actions
+- Add video saving to eval script
