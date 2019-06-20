@@ -7,20 +7,26 @@ import gym
 import argparse
 import torch
 import numpy as np
-from common.models import MLPPolicy
+from common.models import MLPPolicy, MLPActor
 from common.utils import make_mujoco_env
 
 def load_policy(env, args):
     obs_dim = env.observation_space.shape[-1]
     act_dim = env.action_space.shape[-1]
-    policy_fn = MLPPolicy
+    if args.algo == 'ddpg':
+        policy_fn = MLPActor
+    else:
+        policy_fn = MLPPolicy
     policy = policy_fn(obs_dim, act_dim)
     policy.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
     return policy
 
 def select_action(policy, obs, args):
     x = torch.from_numpy(obs[None]).float()
-    pi, v = policy(x)
+    if args.algo == 'ddpg':
+        pi = policy(x)
+    else:
+        pi, v = policy(x)
     return pi.sample().cpu().numpy()[0]
 
 def main(args):
@@ -33,7 +39,7 @@ def main(args):
         rew_t = 0; obs = env.reset(); done = False
         while not done:
             if args.render: env.render()
-            action, hx = select_action(policy, obs, args)
+            action = select_action(policy, obs, args)
             obs, rew, done, info = env.step(action)
             rew_t += rew
         returns.append(rew_t)
@@ -48,7 +54,7 @@ def main(args):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--env', type=str, default='HalfCheetah-v2', help='environment name')
-    parser.add_argument('--algo', type=str, default='ppo', choices=['a2c', 'ppo'], help='algo for checkpoint')
+    parser.add_argument('--algo', type=str, default='ppo', choices=['a2c', 'ppo', 'ddpg'], help='algo for checkpoint')
     parser.add_argument('--checkpoint', type=str, help='checkpoint to evaluate/visualize')
     parser.add_argument('--test_eps', type=int, default=10, help='number of episodes to evaluate')
     parser.add_argument('--render', action='store_true', help='whether to render the policy')

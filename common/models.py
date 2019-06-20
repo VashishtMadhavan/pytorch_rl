@@ -10,6 +10,34 @@ def xavier_init(m):
         nn.init.xavier_uniform_(m.weight)
         m.bias.data.zero_()
 
+# TODO: make this a distribution
+class MLPActor(nn.Module):
+    def __init__(self, obs_dim, act_dim, max_action):
+        super(MLPActor, self).__init__()
+        self.l1 = nn.Linear(obs_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, act_dim)
+        self.max_action = max_action
+
+    def forward(self, x):
+        out = F.relu(self.l1(x))
+        out = F.relu(self.l2(out))
+        act = self.max_action * torch.tanh(self.l3(out))
+        return act
+
+class MLPCritic(nn.Module):
+    def __init__(self, obs_dim, act_dim):
+        super(MLPCritic, self).__init__()
+        self.l1 = nn.Linear(obs_dim, 256)
+        self.l2 = nn.Linear(256 + act_dim, 256)
+        self.l3 = nn.Linear(256, 1)
+
+    def foward(self, x, a):
+        out = F.relu(self.l1(x))
+        out = torch.cat([out, a], 1)
+        out = F.relu(self.l2(out))
+        return self.l3(out)
+
 class MLPPolicy(nn.Module):
     def __init__(self, obs_dim, act_dim):
         super(MLPPolicy, self).__init__()
