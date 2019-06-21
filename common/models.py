@@ -14,11 +14,11 @@ class MLPActor(nn.Module):
     def __init__(self, obs_dim, act_dim, max_action, expl_noise=0.1):
         super(MLPActor, self).__init__()
         self.expl_noise = expl_noise
-        self.l1 = nn.Linear(obs_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, act_dim)
+        self.l1 = nn.Linear(obs_dim, 400)
+        self.l2 = nn.Linear(400, 300)
+        self.l3 = nn.Linear(300, act_dim)
         self.max_action = max_action
-        self.action_noise = torch.ones(self.act_dim) * self.expl_noise
+        self.action_noise = torch.ones(act_dim) * self.expl_noise
 
     def forward(self, x):
         out = F.relu(self.l1(x))
@@ -30,11 +30,11 @@ class MLPActor(nn.Module):
 class MLPCritic(nn.Module):
     def __init__(self, obs_dim, act_dim):
         super(MLPCritic, self).__init__()
-        self.l1 = nn.Linear(obs_dim, 256)
-        self.l2 = nn.Linear(256 + act_dim, 256)
-        self.l3 = nn.Linear(256, 1)
+        self.l1 = nn.Linear(obs_dim, 400)
+        self.l2 = nn.Linear(400 + act_dim, 300)
+        self.l3 = nn.Linear(300, 1)
 
-    def foward(self, x, a):
+    def forward(self, x, a):
         out = F.relu(self.l1(x))
         out = torch.cat([out, a], 1)
         out = F.relu(self.l2(out))

@@ -1,15 +1,20 @@
 # Lightweight PyTorch Implementations of Deep RL Algorithms
 
 ### Algorithms
-
-[TODO: add more descriptions to this]
-- DQN - Discrete Action
-- DDPG - Continuous Action
-- A2C - Discrete Action
-- PPO - Discrete/Continuous Action
+- DQN
+  - Off-Policy Learning with Discrete Action Spaces
+  - [paper][https://arxiv.org/abs/1509.06461.pdf]
+- DDPG
+  - Off-Policy Learning with Continuous Action Spaces
+  - [paper][https://arxiv.org/abs/1802.09477]
+- A2C
+  - On-Policy Actor-Critic Learning with Continuous/Discrete Action Spaces
+  - [paper][https://arxiv.org/abs/1602.01783]
+- PPO 
+  - On-Policy Actor-Critic Learning with Continuous/Discrete Action Spaces
+  - [paper][https://arxiv.org/abs/1707.06347]
 
 ### Instructions to Train Each Algorithm
-
 To train a DQN agent
 ```
 python -m algos.dqn.run_atari --env 'PongNoFrameskip-v4' #  train a DQN on Pong
