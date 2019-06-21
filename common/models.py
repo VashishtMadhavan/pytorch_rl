@@ -11,34 +11,46 @@ def xavier_init(m):
         m.bias.data.zero_()
 
 class MLPActor(nn.Module):
-    def __init__(self, obs_dim, act_dim, max_action, expl_noise=0.1):
+    def __init__(self, obs_dim, act_dim, max_action):
         super(MLPActor, self).__init__()
-        self.expl_noise = expl_noise
         self.l1 = nn.Linear(obs_dim, 400)
         self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, act_dim)
         self.max_action = max_action
-        self.action_noise = torch.ones(act_dim) * self.expl_noise
 
     def forward(self, x):
         out = F.relu(self.l1(x))
         out = F.relu(self.l2(out))
         act_mean = self.max_action * torch.tanh(self.l3(out))
-        pi = MultivariateNormal(act_mean, torch.diag(self.action_noise))
-        return pi
+        return act_mean
 
 class MLPCritic(nn.Module):
     def __init__(self, obs_dim, act_dim):
         super(MLPCritic, self).__init__()
-        self.l1 = nn.Linear(obs_dim, 400)
-        self.l2 = nn.Linear(400 + act_dim, 300)
+        # Q1 Architecture
+        self.l1 = nn.Linear(obs_dim + act_dim, 400)
+        self.l2 = nn.Linear(400, 300)
         self.l3 = nn.Linear(300, 1)
 
+        # Q2 Architecture
+        self.l4 = nn.Linear(obs_dim + act_dim, 400)
+        self.l5 = nn.Linear(400, 300)
+        self.l6 = nn.Linear(300, 1)
+
     def forward(self, x, a):
-        out = F.relu(self.l1(x))
-        out = torch.cat([out, a], 1)
-        out = F.relu(self.l2(out))
-        return self.l3(out)
+        concat = torch.cat([x, a], 1)
+        x1 = F.relu(self.l1(concat))
+        x1 = F.relu(self.l2(x1))
+
+        x2 = F.relu(self.l4(concat))
+        x2 = F.relu(self.l5(x2))
+        return self.l3(x1), self.l6(x2)
+
+    def Q1(self, x, a):
+        concat = torch.cat([x, a], 1)
+        x1 = F.relu(self.l1(concat))
+        x1 = F.relu(self.l2(x1))
+        return self.l3(x1)
 
 class MLPPolicy(nn.Module):
     def __init__(self, obs_dim, act_dim, expl_noise=0.1):
@@ -60,7 +72,9 @@ class MLPPolicy(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 1)
         )
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.action_noise = torch.ones(self.act_dim) * self.expl_noise
+        self.action_noise.to(device)
         self.apply(xavier_init)
 
     def forward(self, x):

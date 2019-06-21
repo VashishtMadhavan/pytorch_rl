@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument('--gpu', type=str, default='0', help='which GPU to use. If no GPU use -1')
 
     # A2C specific params
+    # TODO: make sure these hyperparmaters are correct
     parser.add_argument('--n_step', type=int, default=2048, help='number of steps to collect before update')
     parser.add_argument('--tau', type=float, default=0.95, help='discount factor for GAE')
     parser.add_argument('--vf_coef', type=float, default=0.25, help='coef for value function loss')
