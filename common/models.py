@@ -10,20 +10,22 @@ def xavier_init(m):
         nn.init.xavier_uniform_(m.weight)
         m.bias.data.zero_()
 
-# TODO: make this a distribution
 class MLPActor(nn.Module):
-    def __init__(self, obs_dim, act_dim, max_action):
+    def __init__(self, obs_dim, act_dim, max_action, expl_noise=0.1):
         super(MLPActor, self).__init__()
+        self.expl_noise = expl_noise
         self.l1 = nn.Linear(obs_dim, 256)
         self.l2 = nn.Linear(256, 256)
         self.l3 = nn.Linear(256, act_dim)
         self.max_action = max_action
+        self.action_noise = torch.ones(self.act_dim) * self.expl_noise
 
     def forward(self, x):
         out = F.relu(self.l1(x))
         out = F.relu(self.l2(out))
-        act = self.max_action * torch.tanh(self.l3(out))
-        return act
+        act_mean = self.max_action * torch.tanh(self.l3(out))
+        pi = MultivariateNormal(act_mean, torch.diag(self.action_noise))
+        return pi
 
 class MLPCritic(nn.Module):
     def __init__(self, obs_dim, act_dim):
@@ -39,10 +41,11 @@ class MLPCritic(nn.Module):
         return self.l3(out)
 
 class MLPPolicy(nn.Module):
-    def __init__(self, obs_dim, act_dim):
+    def __init__(self, obs_dim, act_dim, expl_noise=0.1):
         super(MLPPolicy, self).__init__()
         self.obs_dim = obs_dim
         self.act_dim = act_dim
+        self.expl_noise = expl_noise
         self.policy = nn.Sequential(
             nn.Linear(self.obs_dim, 64),
             nn.ReLU(),
@@ -57,7 +60,7 @@ class MLPPolicy(nn.Module):
             nn.ReLU(),
             nn.Linear(64, 1)
         )
-        self.action_noise = torch.ones(self.act_dim) * 0.36
+        self.action_noise = torch.ones(self.act_dim) * self.expl_noise
         self.apply(xavier_init)
 
     def forward(self, x):

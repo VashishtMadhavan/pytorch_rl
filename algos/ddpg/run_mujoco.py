@@ -20,10 +20,11 @@ def parse_args():
     parser.add_argument('--replay_size', type=int, default=int(1e6), help='number of transitions stored in the replay buffer')
     parser.add_argument('--batch_size', type=int, default=128, help='batch size for training the Q and pi network')
     parser.add_argument('--expl_noise', type=float, default=0.2, help='action noise for exploration')
+    parser.add_argument('--tau', type=float, default=0.005, help='target network update rate')
     return parser.parse_args()
 
 def main(args):
-    # Load Atari Env
+    # Load Mujoco Env
     env = make_mujoco_env(args.env)
 
     # Setting GPU + device information
