@@ -21,7 +21,7 @@ python -m algos.dqn.run_atari --env 'PongNoFrameskip-v4' #  train a DQN on Pong
 ```
 To train a DDPG agent
 ```
-python -m algos.ddpg.run_mujoco --env 'Ant-v2' # train a DDPG agent on Ant
+python -m algos.ddpg.run_mujoco --env 'HalfCheetah-v2' # train a DDPG agent on Ant
 ```
 To train an A2C agent
 ```
@@ -47,5 +47,4 @@ python -m scripts.eval_mujoco --env {env_name} --algo {a2c,ppo,ddpg} --checkpoin
 
 ### TODO
 - Validate PPO for continuous actions
-- Validate DDPG on Mujoco
 - Add video saving to eval script

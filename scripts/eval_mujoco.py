@@ -22,15 +22,15 @@ def load_policy(env, args):
     return policy
 
 def select_action(policy, obs, args):
-    x = torch.from_numpy(obs[None]).float()
+    x = torch.from_numpy(obs).float()
     if args.algo == 'ddpg':
-        pi = policy(x)
+        return policy(x).cpu().numpy()[0]
     else:
         pi, v = policy(x)
-    return pi.sample().cpu().numpy()[0]
+        return pi.sample().cpu().numpy()[0]
 
 def main(args):
-    env = make_mujoco_env(args.env)
+    env = make_mujoco_env(args.env, 0, normalize=args.algo in ['ppo', 'a2c'])
     policy = load_policy(env, args)
 
     # Running Policy
