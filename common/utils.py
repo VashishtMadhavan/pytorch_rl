@@ -25,12 +25,16 @@ def make_atari_env(env_id, num_threads, seed, frame_stack=4):
     env = VecFrameStack(env, frame_stack)
     return env, game_lives
 
-def make_mujoco_env(env_id):
+def make_mujoco_env(env_id, seed, normalize=False):
     def make_env():
         env = gym.make(env_id)
+        env.seed(seed)
         return env
     env = DummyVecEnv([make_env])
-    env = VecNormalize(env)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if normalize:
+        env = VecNormalize(env)
     return env
 
 class LinearSchedule(object):
@@ -100,7 +104,6 @@ class RewardTracker:
     @property
     def total_episodes(self):
         return len(self.tot_rews)
-
 
 class Logger:
     def __init__(self, expt_dir):
