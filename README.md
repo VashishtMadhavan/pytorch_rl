@@ -21,7 +21,7 @@ python -m algos.dqn.run_atari --env 'PongNoFrameskip-v4' #  train a DQN on Pong
 ```
 To train a DDPG agent
 ```
-python -m algos.ddpg.run_mujoco --env 'HalfCheetah-v2' # train a DDPG agent on Ant
+python -m algos.ddpg.run_mujoco --env 'HalfCheetah-v2' # train a DDPG agent on HalfCheetah
 ```
 To train an A2C agent
 ```
@@ -32,7 +32,7 @@ To train a PPO agent
 ```
 python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' # train a FF PPO agent on Pong
 python -m algos.ppo.run_atari --env 'PongNoFrameskip-v4' --recurr # train a recurrent PPO agent on Pong
-python -m algos.ppo.run_mujoco --env 'HalfCheetah-v2' # train an MLP agent on Ant
+python -m algos.ppo.run_mujoco --env 'HalfCheetah-v2' # train an MLP agent on HalfCheetah
 ```
 ### Evaluating Trained Agents
 
