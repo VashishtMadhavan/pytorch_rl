@@ -46,5 +46,4 @@ python -m scripts.eval_mujoco --env {env_name} --algo {a2c,ppo,ddpg} --checkpoin
 ```
 
 ### TODO
-- Validate PPO for continuous actions
 - Add video saving to eval script

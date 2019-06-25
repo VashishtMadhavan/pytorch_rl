@@ -25,7 +25,7 @@ def make_atari_env(env_id, num_threads, seed, frame_stack=4):
     env = VecFrameStack(env, frame_stack)
     return env, game_lives
 
-def make_mujoco_env(env_id, seed, normalize=False):
+def make_mujoco_env(env_id, seed, normalize=False, training=True):
     def make_env():
         env = gym.make(env_id)
         env.seed(seed)
@@ -34,7 +34,7 @@ def make_mujoco_env(env_id, seed, normalize=False):
     np.random.seed(seed)
     torch.manual_seed(seed)
     if normalize:
-        env = VecNormalize(env)
+        env = VecNormalize(env, training=training)
     return env
 
 class LinearSchedule(object):

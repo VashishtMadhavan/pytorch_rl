@@ -17,6 +17,9 @@ def load_policy(env, args):
         policy_fn = MLPActor
     else:
         policy_fn = MLPPolicy
+        # Load running average of observation mean
+        save_dir = '/'.join(args.checkpoint.split('/')[:-1])
+        env.load_running_average(save_dir)
     policy = policy_fn(obs_dim, act_dim)
     policy.load_state_dict(torch.load(args.checkpoint, map_location='cpu'))
     return policy
@@ -30,7 +33,7 @@ def select_action(policy, obs, args):
         return pi.sample().cpu().numpy()[0]
 
 def main(args):
-    env = make_mujoco_env(args.env, 0, normalize=args.algo in ['ppo', 'a2c'])
+    env = make_mujoco_env(args.env, 0, normalize=args.algo in ['ppo', 'a2c'], training=False)
     policy = load_policy(env, args)
 
     # Running Policy

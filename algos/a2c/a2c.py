@@ -49,8 +49,9 @@ class A2C:
         self.n_batch = self.n_step * self.threads
         self.train_iters = (self.args.timesteps // self.n_batch) + 1
         self.max_grad_norm = 0.5
-        if not os.path.exists(self.args.outdir):
-            os.mkdir(self.args.outdir)
+        self.outdir = self.args.outdir
+        if not os.path.exists(self.outdir):
+            os.mkdir(self.outdir)
 
         if hasattr(self.args, 'game_lives'):
             self.rew_tracker = RewardTracker(self.threads, self.args.game_lives)
@@ -183,6 +184,10 @@ class A2C:
             if env_steps % self.log_iters == 0:
                 self.logger.dump()
                 self.logger.save_policy(self.policy, env_steps)
+                # Saving running average
+                if hasattr(self.env, 'save_running_average'):
+                    self.env.save_running_average(self.outdir)
+
 
 
 if __name__ == '__main__':
