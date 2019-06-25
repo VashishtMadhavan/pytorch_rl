@@ -1,4 +1,4 @@
-# Lightweight PyTorch Implementations of Deep RL Algorithms
+# Deep RL Algorithms in PyTorch
 
 ### Algorithms
 - DQN
